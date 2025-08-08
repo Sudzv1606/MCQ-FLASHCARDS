@@ -396,6 +396,7 @@ Answer: b
         const div = document.createElement("div");
         div.className = "opt";
         div.innerHTML = `<strong>${optText[0].toUpperCase()}.</strong> ${optText.slice(3)}`;
+        div.dataset.option = optText;  // Store original option text for matching
         div.onclick = () => {
           if (answered) return;
           answered = true;
@@ -403,14 +404,14 @@ Answer: b
           const clickedIndex = opts.indexOf(optText);
           const correctOptText = c.options[c.correctIndex];
 
-          if (clickedIndex === opts.indexOf(correctOptText)) {
+          if (optText === correctOptText) {
             div.classList.add("correct");
             score++;
           } else {
             div.classList.add("wrong");
-            // Show correct option
+            // Highlight correct option by matching data-option attribute
             for (const child of optsDiv.children) {
-              if (child.textContent.trim() === correctOptText) {
+              if (child.dataset.option === correctOptText) {
                 child.classList.add("correct");
               }
             }
@@ -450,6 +451,7 @@ Answer: b
       if (!f) return status("Choose a file");
       processDocument(f);
     };
+
     $("#resetBtn").onclick = () => {
       $("#flashArea").style.display = "none";
       cards = [];
@@ -458,19 +460,23 @@ Answer: b
       status("Idle");
       $("#score").textContent = 0;
       $("#progress").textContent = "0/0";
+      $("#fileInput").value = "";
     };
+
     $("#nextBtn").onclick = () => {
       if (idx < cards.length - 1) {
         idx++;
         renderCard();
       }
     };
+
     $("#prevBtn").onclick = () => {
       if (idx > 0) {
         idx--;
         renderCard();
       }
     };
+
     $("#shuffleBtn").onclick = () => {
       shuffle(cards);
       idx = 0;
