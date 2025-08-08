@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MCQ Flashcards</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root {
+      --bg: #1e1e2f;
+      --card: #2a2a40;
+      --muted: #9ca3af;
+      --accent: #10b981;
+      --text: #f3f4f6;
+      --wrong: #ef4444;
+      --correct-bg: rgba(16, 185, 129, 0.2);
+      --wrong-bg: rgba(239, 68, 68, 0.2);
+    }
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, Arial;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 900px;
+      margin: 28px auto;
+      padding: 20px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0;
+      color: var(--accent);
+    }
+    p.lead {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+    }
+    label.file {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px dashed var(--muted);
+      cursor: pointer;
+      color: var(--text);
+    }
+    input[type='file'] {
+      display: none;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 0;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--muted);
+    }
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+      min-width: 200px;
+      text-align: right;
+    }
+    .flash-area {
+      margin-top: 18px;
+      display: none;
+    }
+    .question {
+      font-size: 18px;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .options {
+      display: grid;
+      gap: 10px;
+    }
+    .opt {
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--muted);
+      cursor: pointer;
+      user-select: none;
+      background: var(--card);
+      color: var(--text);
+      transition: 0.2s;
+    }
+    .opt:hover {
+      background: #3b3b5c;
+    }
+    .opt.correct {
+      background: var(--correct-bg);
+      border-color: var(--accent);
+    }
+    .opt.wrong {
+      background: var(--wrong-bg);
+      border-color: var(--wrong);
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .controls-bottom {
+      display: flex;
+      gap: 8px;
+    }
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    footer.note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+    code {
+      background: #333;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      display: inline-block;
+      margin-top: 8px;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>MCQ Flashcards</h1>
+        <p class="lead">
+          Upload a .docx with MCQs in this format:
+          <code>
+Question: Who wrote Hamlet?
+a) Charles Dickens
+b) William Shakespeare
+c) Mark Twain
+d) Jane Austen
+Answer: b
+          </code>
+        </p>
+      </div>
+      <div class="status" id="status">Idle</div>
+    </header>
+
+    <div class="card">
+      <label class="file"
+        >Choose .docx<input id="fileInput" type="file" accept=".docx" />
+      </label>
+      <button id="processBtn" class="ghost">Process</button>
+      <button id="resetBtn" class="ghost">Reset</button>
+      <p class="small">
+        Questions followed by a/b/c/d options and an Answer: line.
+      </p>
+
+      <div class="flash-area" id="flashArea">
+        <div class="question" id="questionText"></div>
+        <div class="options" id="optionsList"></div>
+        <div class="meta">
+          <div>
+            Progress: <span id="progress">0/0</span> | Score: <span id="score">0</span>
+          </div>
+          <div class="controls-bottom">
+            <button id="prevBtn" class="ghost">Previous</button>
+            <button id="nextBtn" class="ghost">Next</button>
+            <button id="shuffleBtn" class="ghost">Reshuffle</button>
+          </div>
+        </div>
+      </div>
+
+      <footer class="note">This runs fully in your browser. No data is uploaded.</footer>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const status = (t) => {
+      $("#status").textContent = t;
+    };
+    let cards = [],
+      idx = 0,
+      score = 0,
+      answered = false;
+
+    const shuffle = (a) => {
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+    };
+
+    function parseQuestions(text) {
+      // Normalize line breaks
+      const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      // Split by "Question:" ignoring case
+      const rawBlocks = normalized.split(/Question:/i).filter((b) => b.trim() !== "");
+      const questions = [];
+
+      rawBlocks.forEach((block) => {
+        const lines = block
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => l);
+
+        if (lines.length < 2) return; // skip incomplete blocks
+
+        const questionText = lines[0];
+        const options = [];
+        let answerLetter = null;
+
+        lines.slice(1).forEach((line) => {
+          if (/^[a-d]\)/i.test(line)) {
+            options.push(line);
+          } else if (/^Answer:/i.test(line)) {
+            answerLetter = line.split(":")[1].trim().toLowerCase();
+          }
+        });
+
+        if (questionText && options.length === 4 && answerLetter) {
+          questions.push({
+            question: questionText,
+            options: options,
+            correctIndex: answerLetter.charCodeAt(0) - 97,
+          });
+        }
+      });
+
+      return questions;
+    }
+
+    function renderCard() {
+      answered = false;
+      const c = cards[idx];
+      $("#questionText").textContent = c.question;
+      const optsDiv = $("#optionsList");
+      optsDiv.innerHTML = "";
+      const opts = [...c.options];
+      shuffle(opts);
+      opts.forEach((optText) => {
+        const div = document.createElement("div");
+        div.className = "opt";
+        div.textContent = optText;
+        div.onclick = () => {
+          if (answered) return;
+          answered = true;
+
+          const clickedIndex = opts.indexOf(optText);
+          const correctOptText = c.options[c.correctIndex];
+
+          if (clickedIndex === opts.indexOf(correctOptText)) {
+            div.classList.add("correct");
+            score++;
+          } else {
+            div.classList.add("wrong");
+            // Show correct option
+            for (const child of optsDiv.children) {
+              if (child.textContent === correctOptText) {
+                child.classList.add("correct");
+              }
+            }
+          }
+          $("#score").textContent = score;
+        };
+        optsDiv.appendChild(div);
+      });
+      $("#progress").textContent = `${idx + 1}/${cards.length}`;
+    }
+
+    function processDocument(file) {
+      status("Reading...");
+      const r = new FileReader();
+      r.onload = (e) => {
+        mammoth
+          .extractRawText({ arrayBuffer: e.target.result })
+          .then((result) => {
+            cards = shuffleArray(parseQuestions(result.value));
+            if (cards.length === 0) {
+              status("No valid questions found. Please check file format.");
+              return;
+            }
+            idx = 0;
+            score = 0;
+            status(`Loaded ${cards.length} MCQs`);
+            $("#flashArea").style.display = "block";
+            renderCard();
+          })
+          .catch(() => status("Error processing file."));
+      };
+      r.readAsArrayBuffer(file);
+    }
+
+    $("#processBtn").onclick = () => {
+      const f = $("#fileInput").files[0];
+      if (!f) return status("Choose a file");
+      processDocument(f);
+    };
+    $("#resetBtn").onclick = () => {
+      $("#flashArea").style.display = "none";
+      cards = [];
+      idx = 0;
+      score = 0;
+      status("Idle");
+      $("#score").textContent = 0;
+      $("#progress").textContent = "0/0";
+    };
+    $("#nextBtn").onclick = () => {
+      if (idx < cards.length - 1) {
+        idx++;
+        renderCard();
+      }
+    };
+    $("#prevBtn").onclick = () => {
+      if (idx > 0) {
+        idx--;
+        renderCard();
+      }
+    };
+    $("#shuffleBtn").onclick = () => {
+      shuffle(cards);
+      idx = 0;
+      renderCard();
+      status("Shuffled");
+    };
+
+    // Fisher-Yates shuffle helper
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+  </script>
+</body>
+</html>
